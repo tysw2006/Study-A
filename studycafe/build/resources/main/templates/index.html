@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스터디카페 LIVE 좌석</title>
+    <style>
+        body {
+            background-color: #ffffff; /* 순백색 배경 */
+            color: #333;
+            font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .hidden { display: none !important; }
+        
+        .app-container {
+            width: 100%;
+            max-width: 1200px; /* 가로 비율 (와이드) */
+            min-height: calc(100vh - 40px);
+            background: #ffffff;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            background: #fff;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .top-nav button {
+            background: #000; /* 버튼 검은색 */
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff; /* 글자 흰색 */
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .top-nav button:hover { background: #333; }
+        .top-nav button.btn-danger { color: #fff; background: #e03131; }
+
+        /* Header */
+        .header {
+            background: white;
+            padding: 30px;
+            font-size: 24px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+        }
+        .live-badge {
+            background: #ff5722;
+            color: white;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 12px;
+            font-weight: 800;
+        }
+
+        /* Legend */
+        .legend {
+            background: white;
+            padding: 10px 30px;
+            display: flex;
+            gap: 25px;
+            font-size: 15px;
+            color: #555;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .dot { width: 14px; height: 14px; border-radius: 50%; }
+        .dot.available { background: #000; } /* 예약가능 검은색 */
+        .dot.unavailable { border: 1px solid #ced4da; background: linear-gradient(to bottom right, transparent calc(50% - 1px), #ced4da calc(50% - 1px), #ced4da calc(50% + 1px), transparent calc(50% + 1px)); }
+
+        /* Floor Map Layout */
+        .floor-map-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            border: 4px solid #000;
+            border-radius: 12px;
+            background: #fafafa;
+            margin: 0 auto 60px auto; /* 하단 통계 바와 겹치지 않게 여백 추가 */
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        .map-door {
+            position: absolute;
+            bottom: 0px; /* 테두리 안쪽으로 살짝 올림 */
+            left: 50px;
+            width: 120px;
+            height: 40px; /* 높이를 살짝 키움 */
+            background: #fff;
+            border: 4px solid #000;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 900;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 2px;
+        }
+        .map-rest-area {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 250px;
+            height: 150px;
+            background: #f1f3f5;
+            border: 2px dashed #adb5bd;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 800;
+            color: #495057;
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+        .map-rest-area::before {
+            content: '☕';
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        .map-rooms-area {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .map-seats-area {
+            position: absolute;
+            top: 40px;
+            left: 30px;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 25px 20px;
+        }
+
+        /* Seat & Room UI */
+        .seat-box {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 800;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-sizing: border-box;
+            letter-spacing: -0.5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: 0.2s;
+        }
+        .seat-box:hover { transform: translateY(-3px); }
+        
+        /* 의자 모양 */
+        .seat-box::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 12px;
+            border-radius: 0 0 20px 20px;
+            box-sizing: border-box;
+        }
+
+        .seat-box.available {
+            background-color: #000; /* 검은색 버튼 */
+            color: white;
+            border: none;
+        }
+        .seat-box.available::after {
+            background-color: #222; /* 의자도 검은색 계열 */
+        }
+        .seat-box.in-use {
+            background-color: #fff;
+            color: #adb5bd;
+            border: 2px solid #e9ecef;
+            background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), #dee2e6 calc(50% - 1px), #dee2e6 calc(50% + 1.5px), transparent calc(50% + 1.5px));
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        .seat-box.in-use::after {
+            background-color: #fff;
+            border: 2px solid #e9ecef;
+            border-top: none;
+        }
+
+        .room-box {
+            width: 160px;
+            height: 90px;
+            font-size: 16px;
+        }
+        .room-box::after { display: none; }
+
+        /* Stats Bottom Bar */
+        .stats-bar {
+            background: #fafafa;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            border-top: 1px solid #eee;
+            border-radius: 0 0 12px 12px;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .stat-item { text-align: center; }
+        .stat-val { font-size: 22px; font-weight: 800; color: #000; }
+        .stat-label { font-size: 14px; color: #666; margin-top: 4px; font-weight: 600; }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .bottom-sheet {
+            background: white;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 16px;
+            padding: 30px 20px;
+            box-sizing: border-box;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+        }
+        .bottom-sheet h2 { margin: 0 0 20px 0; font-size: 22px; color: #000; }
+        .bottom-sheet select {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            outline: none;
+            background: #f8f9fa;
+        }
+        .sheet-btns { display: flex; gap: 10px; }
+        .sheet-btns button {
+            flex: 1;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-cancel { background: #f1f3f5; color: #000; }
+        .btn-submit { background: #000; color: white; }
+
+        /* Auth & List Views */
+        .auth-form { padding: 60px 40px; text-align: center; max-width: 400px; margin: 0 auto; }
+        .auth-form h2 { font-size: 26px; margin-bottom: 30px; color: #000; }
+        .auth-form input {
+            width: 100%; padding: 16px; margin-bottom: 15px;
+            border: 1px solid #ddd; border-radius: 8px;
+            font-size: 15px; box-sizing: border-box; background: #fff;
+        }
+        .auth-form button {
+            width: 100%; padding: 16px; background: #000;
+            color: white; border: none; border-radius: 8px;
+            font-size: 16px; font-weight: bold; cursor: pointer;
+        }
+        
+        .list-view { padding: 30px; }
+        .list-card {
+            background: white; border-radius: 12px; padding: 25px;
+            margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #eee;
+        }
+        .list-card h3 { margin: 0 0 15px 0; font-size: 20px; color: #000; }
+        .list-card p { margin: 8px 0; font-size: 15px; color: #555; }
+        .list-card .badge {
+            display: inline-block; padding: 6px 12px; border-radius: 6px;
+            font-size: 13px; font-weight: 700; margin-top: 15px;
+        }
+        .badge.active { background: #f1f3f5; color: #000; }
+        .badge.cancel { background: #ffe3e3; color: #e03131; }
+        .btn-sm-cancel {
+            margin-top: 15px; padding: 10px 20px; background: #fff;
+            border: 1px solid #e03131; color: #e03131; border-radius: 6px; font-weight: 600; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="top-nav">
+        <div id="nav-guest">
+            <button onclick="showView('login-view')">로그인</button>
+            <button onclick="showView('register-view')">회원가입</button>
+        </div>
+        <div id="nav-user" class="hidden">
+            <span id="user-greeting" style="font-size: 14px; font-weight: 700; color: #000; align-self: center; margin-right: 15px;"></span>
+            <button onclick="showView('main-view')">좌석맵</button>
+            <button onclick="showView('my-view')">내 예약</button>
+            <button id="btn-admin" class="hidden btn-primary" onclick="showView('admin-view')">관리자</button>
+            <button onclick="logout()">로그아웃</button>
+            <button class="btn-danger" onclick="withdraw()">탈퇴</button>
+        </div>
+    </div>
+
+    <!-- 1. 로그인 뷰 -->
+    <div id="login-view" class="view auth-form">
+        <h2>스터디카페 로그인</h2>
+        <input type="email" id="login-email" placeholder="이메일 (admin@studycafe.com)" value="user@test.com">
+        <input type="password" id="login-password" placeholder="비밀번호" value="0987">
+        <button onclick="login()">로그인</button>
+    </div>
+
+    <!-- 2. 회원가입 뷰 -->
+    <div id="register-view" class="view hidden auth-form">
+        <h2>회원가입</h2>
+        <input type="text" id="reg-name" placeholder="이름">
+        <input type="email" id="reg-email" placeholder="이메일">
+        <input type="password" id="reg-password" placeholder="비밀번호">
+        <button onclick="register()">가입하기</button>
+    </div>
+
+    <!-- 3. 메인 플로어 맵 뷰 -->
+    <div id="main-view" class="view hidden" style="padding-bottom: 120px;">
+        <div class="header">
+            <span class="live-badge">LIVE</span> 좌석
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="dot available"></span> 선택가능</div>
+            <div class="legend-item"><span class="dot unavailable"></span> 선택불가</div>
+        </div>
+        
+        <div class="floor-map-wrapper" id="map-area">
+            <div class="map-door">🚪 출입문</div>
+            <div class="map-rest-area">휴식 공간</div>
+            <div class="map-seats-area" id="map-seats"></div>
+            <div class="map-rooms-area" id="map-rooms"></div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item"><div class="stat-val" id="stat-seats">0/0</div><div class="stat-label">자유석</div></div>
+            <div class="stat-item"><div class="stat-val" id="stat-rooms">0/0</div><div class="stat-label">스터디룸</div></div>
+        </div>
+    </div>
+
+    <!-- 4. 내 예약 뷰 -->
+    <div id="my-view" class="view hidden list-view">
+        <h2 style="margin-top:0;">내 예약 내역</h2>
+        <div id="my-reservations"></div>
+    </div>
+
+    <!-- 5. 관리자 뷰 -->
+    <div id="admin-view" class="view hidden list-view">
+        <h2 style="margin-top:0;">전체 현황 (관리자)</h2>
+        <div id="admin-reservations"></div>
+    </div>
+</div>
+
+<!-- 예약 바텀 시트 모달 -->
+<div id="reserve-modal" class="modal-overlay hidden">
+    <div class="bottom-sheet">
+        <h2 id="modal-title">예약하기</h2>
+        <select id="reserve-hours" onchange="updatePrice()">
+            <option value="1">1시간</option>
+            <option value="2">2시간</option>
+            <option value="4">4시간</option>
+            <option value="8">8시간 (종일)</option>
+        </select>
+        <div id="price-display" style="font-size: 20px; font-weight: 800; text-align: right; margin-bottom: 20px; color: #ff5722;">0원</div>
+        <div class="sheet-btns">
+            <button class="btn-cancel" onclick="closeModal('reserve-modal')">취소</button>
+            <button class="btn-submit" onclick="submitReservation()">예약 확정</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentUser = null;
+    let selectedType = null;
+    let selectedId = null;
+
+    async function init() {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+            currentUser = await res.json();
+            updateNav();
+            showView('main-view');
+        }
+    }
+
+    async function register() {
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: document.getElementById('reg-name').value,
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value
+            })
+        });
+        if (res.ok) {
+            alert('가입되었습니다! 로그인해주세요.');
+            showView('login-view');
+        } else {
+            alert('회원가입 실패 (이미 존재하는 이메일일 수 있습니다)');
+        }
+    }
+
+    async function login() {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            })
+        });
+        if (res.ok) {
+            currentUser = await res.json();
+            updateNav();
+            showView('main-view');
+        } else {
+            alert('로그인 실패: 정보를 확인해주세요.');
+        }
+    }
+    
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        currentUser = null;
+        updateNav();
+        showView('login-view');
+    }
+
+    async function withdraw() {
+        if(!confirm('정말 탈퇴하시겠습니까? (예약 기록도 모두 삭제됩니다)')) return;
+        const res = await fetch('/api/auth/withdraw', { method: 'POST' });
+        if (res.ok) {
+            alert('탈퇴 처리되었습니다.');
+            currentUser = null;
+            updateNav();
+            showView('login-view');
+        } else {
+            alert('탈퇴 처리 실패');
+        }
+    }
+
+    function showView(viewId) {
+        document.querySelectorAll('.view').forEach(el => el.classList.add('hidden'));
+        document.getElementById(viewId).classList.remove('hidden');
+        if (viewId === 'main-view') loadData();
+        if (viewId === 'my-view') loadMyReservations();
+        if (viewId === 'admin-view') loadAdminData();
+    }
+
+    function updateNav() {
+        if (currentUser) {
+            document.getElementById('nav-guest').classList.add('hidden');
+            document.getElementById('nav-user').classList.remove('hidden');
+            document.getElementById('user-greeting').innerText = currentUser.name + '님';
+            if(currentUser.role === 'ADMIN') document.getElementById('btn-admin').classList.remove('hidden');
+            else document.getElementById('btn-admin').classList.add('hidden');
+        } else {
+            document.getElementById('nav-guest').classList.remove('hidden');
+            document.getElementById('nav-user').classList.add('hidden');
+        }
+    }
+
+    async function loadData() {
+        selectedType = null;
+        selectedId = null;
+        
+        const [seatsRes, activeRes, roomsRes] = await Promise.all([
+            fetch('/api/seats'), fetch('/api/active-status'), fetch('/api/rooms')
+        ]);
+        const seats = await seatsRes.json();
+        const activeReservations = await activeRes.json();
+        const rooms = await roomsRes.json();
+
+        const activeSeatIds = activeReservations.filter(r => r.reservationType === 'SEAT').map(r => r.seat.id);
+        const activeRoomIds = activeReservations.filter(r => r.reservationType === 'ROOM').map(r => r.studyRoom.id);
+
+        const mapSeats = document.getElementById('map-seats');
+        mapSeats.innerHTML = '';
+        const mapRooms = document.getElementById('map-rooms');
+        mapRooms.innerHTML = '';
+
+        let availableSeats = 0;
+        let availableRooms = 0;
+
+        // 좌석 렌더링 (그리드에 18개 배치)
+        seats.forEach((seat) => {
+            const inUse = activeSeatIds.includes(seat.id);
+            if(!inUse) availableSeats++;
+            
+            const div = document.createElement('div');
+            div.className = 'seat-box ' + (inUse ? 'in-use' : 'available');
+            div.innerText = seat.seatNumber;
+            if (!inUse) div.onclick = () => selectElement('SEAT', seat.id, seat.seatNumber);
+            
+            mapSeats.appendChild(div);
+        });
+
+        // 스터디 룸 렌더링
+        rooms.forEach(room => {
+            const inUse = activeRoomIds.includes(room.id);
+            if(!inUse) availableRooms++;
+
+            const div = document.createElement('div');
+            div.className = 'seat-box room-box ' + (inUse ? 'in-use' : 'available');
+            div.innerHTML = `<span>${room.roomName}</span>`;
+            if (!inUse) div.onclick = () => selectElement('ROOM', room.id, room.roomName);
+            mapRooms.appendChild(div);
+        });
+
+        // 하단 통계 업데이트
+        document.getElementById('stat-seats').innerText = `${availableSeats}/${seats.length}`;
+        document.getElementById('stat-rooms').innerText = `${availableRooms}/${rooms.length}`;
+    }
+
+    let currentPrice = 0;
+
+    function selectElement(type, id, name) {
+        selectedType = type;
+        selectedId = id;
+        document.getElementById('modal-title').innerText = type === 'SEAT' ? `[${name}] 좌석 예약` : `[${name}] 스터디 룸 예약`;
+        document.getElementById('reserve-hours').value = "1";
+        updatePrice();
+        document.getElementById('reserve-modal').classList.remove('hidden');
+    }
+
+    function updatePrice() {
+        const hours = parseInt(document.getElementById('reserve-hours').value);
+        let baseRate = 0;
+        
+        if (selectedType === 'SEAT') {
+            if(hours === 1) baseRate = 2000;
+            if(hours === 2) baseRate = 4000;
+            if(hours === 4) baseRate = 8000;
+            if(hours === 8) baseRate = 12000;
+        } else if (selectedType === 'ROOM') {
+            const title = document.getElementById('modal-title').innerText;
+            if (title.includes('2인')) {
+                if(hours === 1) baseRate = 4000;
+                if(hours === 2) baseRate = 8000;
+                if(hours === 4) baseRate = 12000;
+                if(hours === 8) baseRate = 16000;
+            } else if (title.includes('4인')) {
+                if(hours === 1) baseRate = 6000;
+                if(hours === 2) baseRate = 12000;
+                if(hours === 4) baseRate = 18000;
+                if(hours === 8) baseRate = 24000;
+            } else if (title.includes('6인') || title.includes('8인')) {
+                // Room 3 (8인) Pricing as requested. (Wait, Room 3 was requested to be 8인)
+                // Let's just use 8000/16000/24000/32000 for both 6인 and 8인 just in case.
+                if(hours === 1) baseRate = 8000;
+                if(hours === 2) baseRate = 16000;
+                if(hours === 4) baseRate = 24000;
+                if(hours === 8) baseRate = 32000;
+            }
+        }
+        
+        currentPrice = baseRate;
+        document.getElementById('price-display').innerText = currentPrice.toLocaleString() + '원';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    async function submitReservation() {
+        if(!confirm(`결제 금액은 ${currentPrice.toLocaleString()}원입니다. 예약하시겠습니까?`)) return;
+
+        const hours = document.getElementById('reserve-hours').value;
+        const endpoint = selectedType === 'SEAT' ? '/api/reservations/seat' : '/api/reservations/room';
+        const bodyData = selectedType === 'SEAT' ? { seatId: selectedId, hours: hours, totalPrice: currentPrice } : { roomId: selectedId, hours: hours, totalPrice: currentPrice };
+        
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(bodyData)
+        });
+        if (res.ok) {
+            closeModal('reserve-modal');
+            loadData();
+        } else {
+            const errorText = await res.text();
+            alert('예약 실패: ' + (errorText || '알 수 없는 오류가 발생했습니다.'));
+        }
+    }
+
+    async function loadMyReservations() {
+        const res = await fetch('/api/reservations/my');
+        const list = await res.json();
+        const container = document.getElementById('my-reservations');
+        container.innerHTML = '';
+        const now = new Date();
+        
+        list.forEach(r => {
+            const target = r.reservationType === 'SEAT' ? r.seat.seatNumber : r.studyRoom.roomName;
+            const eTime = new Date(r.endTime);
+            const isActive = r.status === 'ACTIVE';
+            
+            let remaining = '이용 종료';
+            if(isActive) {
+                const diffMs = eTime - now;
+                if(diffMs > 0) remaining = `${Math.floor(diffMs / 3600000)}시간 ${Math.floor((diffMs % 3600000) / 60000)}분 남음`;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'list-card';
+            card.innerHTML = `
+                <h3>${target} (${r.reservationType})</h3>
+                <p>시작: ${new Date(r.startTime).toLocaleString()}</p>
+                <p>종료: ${eTime.toLocaleString()}</p>
+                <span class="badge ${isActive ? 'active' : 'cancel'}">${isActive ? remaining : r.status}</span>
+                ${isActive ? `<button class="btn-sm-cancel" onclick="cancelRes(${r.id})">예약 취소하기</button>` : ''}
+            `;
+            container.appendChild(card);
+        });
+    }
+    
+    async function loadAdminData() {
+        const res = await fetch('/api/admin/reservations');
+        if (!res.ok) return;
+        const list = await res.json();
+        const container = document.getElementById('admin-reservations');
+        container.innerHTML = '';
+        list.forEach(r => {
+            const card = document.createElement('div');
+            card.className = 'list-card';
+            card.innerHTML = `
+                <h3>${r.userName} <span style="font-size:14px; color:#888;">${r.userEmail}</span></h3>
+                <p>예약 대상: <strong>${r.target} (${r.reservationType})</strong></p>
+                <p>시작: ${new Date(r.startTime).toLocaleString()}</p>
+                <p>종료: ${new Date(r.endTime).toLocaleString()}</p>
+                <span class="badge ${r.status === 'ACTIVE' ? 'active' : 'cancel'}">${r.status}</span>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    async function cancelRes(id) {
+        if(!confirm('해당 예약을 취소하시겠습니까?')) return;
+        await fetch(`/api/reservations/${id}/cancel`, { method: 'POST' });
+        loadMyReservations();
+    }
+
+    init();
+</script>
+</body>
+</html>
