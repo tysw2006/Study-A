@@ -15,7 +15,7 @@
             justify-content: center;
         }
         .hidden { display: none !important; }
-        
+
         .app-container {
             width: 100%;
             max-width: 1200px; /* 가로 비율 (와이드) */
@@ -175,7 +175,7 @@
             transition: 0.2s;
         }
         .seat-box:hover { transform: translateY(-3px); }
-        
+
         /* 의자 모양 */
         .seat-box::after {
             content: '';
@@ -293,7 +293,33 @@
             color: white; border: none; border-radius: 8px;
             font-size: 16px; font-weight: bold; cursor: pointer;
         }
-        
+
+        /* ==========================================
+           [추가] 이메일 인증용 스타일
+        ========================================== */
+        .input-btn-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .input-btn-group input {
+            margin-bottom: 0 !important;
+            flex: 1;
+        }
+        .input-btn-group button {
+            width: auto !important;
+            padding: 0 16px !important;
+            font-size: 14px !important;
+            white-space: nowrap;
+        }
+        .verify-info-box {
+            text-align: left;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        /* ========================================== */
+
         .list-view { padding: 30px; }
         .list-card {
             background: white; border-radius: 12px; padding: 25px;
@@ -335,8 +361,8 @@
     <!-- 1. 로그인 뷰 -->
     <div id="login-view" class="view auth-form">
         <h2>스터디카페 로그인</h2>
-        <input type="email" id="login-email" placeholder="이메일 (admin@studycafe.com)" value="user@test.com">
-        <input type="password" id="login-password" placeholder="비밀번호" value="0987">
+        <input type="email" id="login-email" placeholder="이메일" autocomplete="off">
+        <input type="password" id="login-password" placeholder="비밀번호" autocomplete="new-password">
         <button onclick="login()">로그인</button>
     </div>
 
@@ -344,7 +370,25 @@
     <div id="register-view" class="view hidden auth-form">
         <h2>회원가입</h2>
         <input type="text" id="reg-name" placeholder="이름">
-        <input type="email" id="reg-email" placeholder="이메일">
+
+        <!-- [추가] 이메일 입력 + 인증번호 전송 버튼 그룹 -->
+        <div class="input-btn-group">
+            <input type="email" id="reg-email" placeholder="이메일">
+            <button type="button" id="btn-send-code" onclick="sendVerificationCode()">인증번호 받기</button>
+        </div>
+
+        <!-- [추가] 인증번호 입력 + 확인 버튼 그룹 (초기에는 숨김) -->
+        <div id="verification-group" class="hidden">
+            <div class="input-btn-group">
+                <input type="text" id="reg-code" placeholder="인증번호 6자리" maxlength="6">
+                <button type="button" id="btn-verify-code" onclick="verifyEmailCode()">인증 확인</button>
+            </div>
+            <div class="verify-info-box">
+                <span id="timer-text" style="color: #ff5722; font-weight: bold;"></span>
+                <span id="verify-status" style="margin-left: 8px;"></span>
+            </div>
+        </div>
+
         <input type="password" id="reg-password" placeholder="비밀번호">
         <button onclick="register()">가입하기</button>
     </div>
@@ -358,7 +402,7 @@
             <div class="legend-item"><span class="dot available"></span> 선택가능</div>
             <div class="legend-item"><span class="dot unavailable"></span> 선택불가</div>
         </div>
-        
+
         <div class="floor-map-wrapper" id="map-area">
             <div class="map-door">🚪 출입문</div>
             <div class="map-rest-area">휴식 공간</div>
@@ -408,6 +452,134 @@
     let selectedType = null;
     let selectedId = null;
 
+    // ==========================================
+    // [추가] 이메일 인증 관련 상태 및 타이머 변수
+    // ==========================================
+    let isEmailVerified = false;
+    let timerInterval = null;
+
+    // [추가] 1. 인증번호 발송 요청 함수
+    async function sendVerificationCode() {
+        const email = document.getElementById('reg-email').value.trim();
+        if (!email) {
+            alert('이메일을 입력해주세요.');
+            return;
+        }
+
+        const btnSend = document.getElementById('btn-send-code');
+        btnSend.disabled = true;
+        btnSend.innerText = '발송 중...';
+
+        try {
+            const res = await fetch('/api/auth/send-code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email: email })
+            });
+
+            if (res.ok) {
+                alert('인증번호가 발송되었습니다. 메일함을 확인해주세요 (유효시간 3분).');
+                document.getElementById('verification-group').classList.remove('hidden');
+
+                // 재발급 시 입력창과 확인 버튼 다시 활성화
+                document.getElementById('btn-verify-code').disabled = false;
+                document.getElementById('reg-code').value = '';
+
+                btnSend.innerText = '재전송';
+                btnSend.disabled = false;
+                startVerificationTimer(180); // 3분 타이머
+            } else {
+                const msg = await res.text();
+                alert('발송 실패: ' + msg);
+                btnSend.disabled = false;
+                btnSend.innerText = '인증번호 받기';
+            }
+        } catch (err) {
+            alert('서버 통신 오류가 발생했습니다.');
+            btnSend.disabled = false;
+            btnSend.innerText = '인증번호 받기';
+        }
+    }
+
+    // [추가] 2. 5분 타이머 동작 함수
+    function startVerificationTimer(seconds) {
+        if (timerInterval) clearInterval(timerInterval);
+
+        let remain = seconds;
+        const timerElem = document.getElementById('timer-text');
+
+        timerInterval = setInterval(() => {
+            const min = Math.floor(remain / 60);
+            const sec = remain % 60;
+            timerElem.innerText = `남은 시간 ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+
+            if (remain <= 0) {
+                clearInterval(timerInterval);
+                timerElem.innerText = '시간 만료';
+                document.getElementById('btn-verify-code').disabled = true;
+            }
+            remain--;
+        }, 1000);
+    }
+
+    // [추가] 3. 인증번호 확인 함수
+    async function verifyEmailCode() {
+        const email = document.getElementById('reg-email').value.trim();
+        const code = document.getElementById('reg-code').value.trim();
+
+        if (!code || code.length !== 6) {
+            alert('6자리 인증번호를 올바르게 입력해주세요.');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/verify-code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email: email, code: code })
+            });
+
+            if (res.ok) {
+                // [성공 시]
+                isEmailVerified = true;
+                if (timerInterval) clearInterval(timerInterval);
+                document.getElementById('timer-text').innerText = '';
+
+                const statusElem = document.getElementById('verify-status');
+                statusElem.style.color = '#2b8a3e';
+                statusElem.style.fontWeight = 'bold';
+                statusElem.innerText = '✓ 인증 완료';
+
+                // 입력창 잠금
+                document.getElementById('reg-email').readOnly = true;
+                document.getElementById('reg-code').readOnly = true;
+                document.getElementById('btn-send-code').disabled = true;
+                document.getElementById('btn-verify-code').disabled = true;
+                alert('이메일 인증이 완료되었습니다.');
+            } else {
+                // [실패 시]
+                const msg = await res.text();
+                alert(msg || '인증번호가 일치하지 않습니다.');
+
+                // 5회 초과 또는 만료된 경우
+                if (msg.includes('초과') || msg.includes('만료')) {
+                    // 1. 타이머 즉시 정지 및 화면에서 지우기 (입력창은 숨기지 않음)
+                    if (timerInterval) clearInterval(timerInterval);
+                    document.getElementById('timer-text').innerText = '';
+
+                    // 2. 해당 번호는 만료되었으므로 확인 버튼 비활성화 & 재발급 유도
+                    document.getElementById('btn-verify-code').disabled = true;
+                    const btnSend = document.getElementById('btn-send-code');
+                    btnSend.innerText = '인증번호 재발급';
+                    btnSend.disabled = false;
+                }
+            }
+        } catch (err) {
+            alert('서버 통신 오류가 발생했습니다.');
+        }
+    }
+    // ==========================================
+
     async function init() {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
@@ -418,6 +590,12 @@
     }
 
     async function register() {
+        // [추가] 회원가입 클릭 시 이메일 인증 여부 검증
+        if (!isEmailVerified) {
+            alert('이메일 인증을 먼저 완료해주세요.');
+            return;
+        }
+
         const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -431,41 +609,52 @@
             alert('가입되었습니다! 로그인해주세요.');
             showView('login-view');
         } else {
-            alert('회원가입 실패 (이미 존재하는 이메일일 수 있습니다)');
+            const errText = await res.text();
+            alert('회원가입 실패: ' + (errText || '이미 존재하는 이메일일 수 있습니다.'));
         }
     }
 
+    // 1. 로그인 함수 (로그인 성공 즉시 입력창 비우기)
     async function login() {
+        const emailInput = document.getElementById('login-email');
+        const passwordInput = document.getElementById('login-password');
+
         const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                email: document.getElementById('login-email').value,
-                password: document.getElementById('login-password').value
+                email: emailInput.value,
+                password: passwordInput.value
             })
         });
         if (res.ok) {
             currentUser = await res.json();
+            resetLoginForm(); // [추가] 로그인 성공 즉시 폼 비우기
             updateNav();
             showView('main-view');
         } else {
             alert('로그인 실패: 정보를 확인해주세요.');
         }
     }
-    
+
+    // 2. 로그아웃 함수
     async function logout() {
         await fetch('/api/auth/logout', { method: 'POST' });
         currentUser = null;
+        resetLoginForm(); // [추가] 로그아웃 시 로그인 폼 확실히 비우기
         updateNav();
         showView('login-view');
     }
 
+    // 3. 회원 탈퇴 함수
     async function withdraw() {
         if(!confirm('정말 탈퇴하시겠습니까? (예약 기록도 모두 삭제됩니다)')) return;
         const res = await fetch('/api/auth/withdraw', { method: 'POST' });
         if (res.ok) {
             alert('탈퇴 처리되었습니다.');
             currentUser = null;
+            resetLoginForm();    // [추가] 탈퇴 시 폼 비우기
+            resetRegisterForm(); // [추가] 가입 폼도 비우기
             updateNav();
             showView('login-view');
         } else {
@@ -473,12 +662,54 @@
         }
     }
 
+    // [추가] 로그인,회원가입 폼 및 인증 상태 완전 초기화 함수
+    function resetRegisterForm() {
+        // 1. 입력 필드 텍스트 초기화
+        document.getElementById('login-email').value = '';
+        document.getElementById('login-password').value = '';
+        document.getElementById('reg-name').value = '';
+        document.getElementById('reg-email').value = '';
+        document.getElementById('reg-code').value = '';
+        document.getElementById('reg-password').value = '';
+
+        // 2. 잠금(readOnly) 및 비활성화(disabled) 해제
+        document.getElementById('reg-email').readOnly = false;
+        document.getElementById('reg-code').readOnly = false;
+
+        const btnSend = document.getElementById('btn-send-code');
+        btnSend.disabled = false;
+        btnSend.innerText = '인증번호 받기';
+
+        const btnVerify = document.getElementById('btn-verify-code');
+        btnVerify.disabled = false;
+
+        // 3. 인증번호 입력창 숨김 및 안내 문구 초기화
+        document.getElementById('verification-group').classList.add('hidden');
+        document.getElementById('timer-text').innerText = '';
+        document.getElementById('verify-status').innerText = '';
+
+        // 4. 타이머 및 인증 완료 플래그 초기화
+        if (timerInterval) clearInterval(timerInterval);
+        isEmailVerified = false;
+    }
+
     function showView(viewId) {
         document.querySelectorAll('.view').forEach(el => el.classList.add('hidden'));
         document.getElementById(viewId).classList.remove('hidden');
+        // [추가] 로그인,회원가입 뷰를 열 때 폼 상태를 깨끗하게 리셋
+        if (viewId === 'login-view') resetLoginForm();
+        if (viewId === 'register-view') resetRegisterForm();
         if (viewId === 'main-view') loadData();
         if (viewId === 'my-view') loadMyReservations();
         if (viewId === 'admin-view') loadAdminData();
+    }
+
+    // [필수] 로그인 폼 초기화 함수
+    function resetLoginForm() {
+        const emailInput = document.getElementById('login-email');
+        const passwordInput = document.getElementById('login-password');
+        if (emailInput) emailInput.value = '';
+        if (passwordInput) passwordInput.value = '';
     }
 
     function updateNav() {
@@ -497,7 +728,7 @@
     async function loadData() {
         selectedType = null;
         selectedId = null;
-        
+
         const [seatsRes, activeRes, roomsRes] = await Promise.all([
             fetch('/api/seats'), fetch('/api/active-status'), fetch('/api/rooms')
         ]);
@@ -520,12 +751,12 @@
         seats.forEach((seat) => {
             const inUse = activeSeatIds.includes(seat.id);
             if(!inUse) availableSeats++;
-            
+
             const div = document.createElement('div');
             div.className = 'seat-box ' + (inUse ? 'in-use' : 'available');
             div.innerText = seat.seatNumber;
             if (!inUse) div.onclick = () => selectElement('SEAT', seat.id, seat.seatNumber);
-            
+
             mapSeats.appendChild(div);
         });
 
@@ -560,7 +791,7 @@
     function updatePrice() {
         const hours = parseInt(document.getElementById('reserve-hours').value);
         let baseRate = 0;
-        
+
         if (selectedType === 'SEAT') {
             if(hours === 1) baseRate = 2000;
             if(hours === 2) baseRate = 4000;
@@ -579,15 +810,13 @@
                 if(hours === 4) baseRate = 18000;
                 if(hours === 8) baseRate = 24000;
             } else if (title.includes('6인') || title.includes('8인')) {
-                // Room 3 (8인) Pricing as requested. (Wait, Room 3 was requested to be 8인)
-                // Let's just use 8000/16000/24000/32000 for both 6인 and 8인 just in case.
                 if(hours === 1) baseRate = 8000;
                 if(hours === 2) baseRate = 16000;
                 if(hours === 4) baseRate = 24000;
                 if(hours === 8) baseRate = 32000;
             }
         }
-        
+
         currentPrice = baseRate;
         document.getElementById('price-display').innerText = currentPrice.toLocaleString() + '원';
     }
@@ -602,7 +831,7 @@
         const hours = document.getElementById('reserve-hours').value;
         const endpoint = selectedType === 'SEAT' ? '/api/reservations/seat' : '/api/reservations/room';
         const bodyData = selectedType === 'SEAT' ? { seatId: selectedId, hours: hours, totalPrice: currentPrice } : { roomId: selectedId, hours: hours, totalPrice: currentPrice };
-        
+
         const res = await fetch(endpoint, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -623,12 +852,12 @@
         const container = document.getElementById('my-reservations');
         container.innerHTML = '';
         const now = new Date();
-        
+
         list.forEach(r => {
             const target = r.reservationType === 'SEAT' ? r.seat.seatNumber : r.studyRoom.roomName;
             const eTime = new Date(r.endTime);
             const isActive = r.status === 'ACTIVE';
-            
+
             let remaining = '이용 종료';
             if(isActive) {
                 const diffMs = eTime - now;
@@ -647,7 +876,7 @@
             container.appendChild(card);
         });
     }
-    
+
     async function loadAdminData() {
         const res = await fetch('/api/admin/reservations');
         if (!res.ok) return;

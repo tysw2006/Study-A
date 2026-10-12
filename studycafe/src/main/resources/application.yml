@@ -3,10 +3,28 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3307/studycafe?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    # characterEncoding=UTF-8&serverTimezone=Asia/Seoul 옵션 추가
+    url: jdbc:mysql://localhost:3307/studycafe?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
     username: study_user
     password: study_password
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # --- 이메일 인증 발송 설정 (개인 계정 정보 입력 필요) ---
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: "" # 본인 구글 이메일 입력
+    password: "" # 구글 앱 비밀번호 16자리 입력
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
   jpa:
     hibernate:

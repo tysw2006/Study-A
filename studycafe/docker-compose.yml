@@ -8,6 +8,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: studycafe
+      MYSQL_USER: study_user             # <- 추가
+      MYSQL_PASSWORD: study_password     # <- 추가
       TZ: Asia/Seoul
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql

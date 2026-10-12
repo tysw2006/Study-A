@@ -1,3 +1,7 @@
+-- [중요] 한글 깨짐 방지를 위해 인코딩 강제 선언
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 -- 1. 데이터베이스 선택
 CREATE DATABASE IF NOT EXISTS studycafe;
 USE studycafe;
@@ -41,8 +45,8 @@ CREATE TABLE reservations (
     study_room_id BIGINT,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE', 
-    reservation_type VARCHAR(50) NOT NULL, 
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    reservation_type VARCHAR(50) NOT NULL,
     total_price INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
@@ -54,16 +58,16 @@ CREATE TABLE reservations (
 -- [2] 초기 테스트 데이터 세팅 (DML)
 -- ==========================================
 
-INSERT INTO users (email, password, name, role) VALUES 
+INSERT INTO users (email, password, name, role) VALUES
 ('admin@studycafe.com', '1234', '관리자', 'ADMIN'),
 ('user@test.com', '0987', '테스트유저', 'USER');
 
-INSERT INTO seats (seat_number) VALUES 
+INSERT INTO seats (seat_number) VALUES
 ('A1'), ('A2'), ('A3'), ('A4'), ('A5'), ('A6'),
 ('B1'), ('B2'), ('B3'), ('B4'), ('B5'), ('B6'),
 ('C1'), ('C2'), ('C3'), ('C4'), ('C5'), ('C6');
 
-INSERT INTO study_rooms (room_name, capacity) VALUES 
-('Room 1 (2인)', 2), 
+INSERT INTO study_rooms (room_name, capacity) VALUES
+('Room 1 (2인)', 2),
 ('Room 2 (4인)', 4),
 ('Room 3 (8인)', 8);
